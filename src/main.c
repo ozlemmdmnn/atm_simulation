@@ -9,108 +9,127 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <time.h>
 #include "../include/atm.h"
 
-/** @brief Oturum acmis kullanici icin islem menusunu gosterir ve yonetir. */
-static void user_menu(Bank *bank, Account *acc) {
-    int choice;
-    do {
-        printf("\n========== KULLANICI MENUSU (%s) ==========\n", acc->name);
-        printf("1. Para Yatir\n");
-        printf("2. Para Cek\n");
-        printf("3. Havale / EFT Gonder\n");
-        printf("4. Bakiye Goruntule\n");
-        printf("5. Sifre (PIN) Degistir\n");
-        printf("6. Islem Gecmisini Goruntule\n");
-        printf("7. Vadeli Hesap / Faiz Simulasyonu\n");
-        printf("8. QR ile Para Cek\n");
-        printf("0. Cikis Yap\n");
+/* Her state fonksiyonu: mevcut context ile çalışır, sonraki AtmState'i döner. */
+static AtmState state_main_menu(AtmContext *ctx);
+static AtmState state_login(AtmContext *ctx);
+static AtmState state_create_account(AtmContext *ctx);
+static AtmState state_user_menu(AtmContext *ctx);
+static AtmState state_deposit(AtmContext *ctx);
+static AtmState state_withdraw(AtmContext *ctx);
+static AtmState state_transfer(AtmContext *ctx);
+static AtmState state_balance(AtmContext *ctx);
+static AtmState state_change_pin(AtmContext *ctx);
+static AtmState state_history(AtmContext *ctx);
+static AtmState state_interest(AtmContext *ctx);
+static AtmState state_qr_withdraw(AtmContext *ctx);
+static AtmState state_logout(AtmContext *ctx);
+static AtmState state_admin_login(AtmContext *ctx);
+static AtmState state_admin_menu(AtmContext *ctx);
+static AtmState state_admin_list(AtmContext *ctx);
+static AtmState state_admin_delete(AtmContext *ctx);
+static AtmState state_admin_unlock(AtmContext *ctx);
 
-        choice = read_int("Seciminiz: ");
-
-        switch (choice) {
-            case 1: deposit(bank, acc); break;
-            case 2: withdraw(bank, acc); break;
-            case 3: transfer(bank, acc); break;
-            case 4: show_balance(acc); break;
-            case 5: change_pin(bank, acc); break;
-            case 6: print_transaction_history(acc); break;
-            case 7: calculate_interest(acc); break;
-            case 8: qr_withdrawal_simulation(bank, acc); break;
-            case 0: printf("Oturum kapatiliyor, iyi gunler %s!\n", acc->name); break;
-            default: printf("Gecersiz secim! Lutfen tekrar deneyin.\n");
-        }
-
-        if (choice != 0) {
-            press_enter_to_continue();
-        }
-    } while (choice != 0);
-}
-
-/** @brief Uygulamanin ana (giris seviyesi) menusunu gosterir ve yonetir. */
-static void main_menu(Bank *bank) {
-    int choice;
-    do {
-        printf("\n================================================\n");
-        printf("            *** ATM SIMULASYONU ***\n");
-        printf("================================================\n");
-        printf("1. Giris Yap\n");
-        printf("2. Yeni Hesap Olustur\n");
-        printf("3. Admin Paneli\n");
-        printf("0. Programdan Cik\n");
-
-        choice = read_int("Seciminiz: ");
-
-        switch (choice) {
-            case 1: {
-                Account *acc = login(bank);
-                if (acc) {
-                    user_menu(bank, acc);
-                }
-                break;
-            }
-            case 2:
-                create_account(bank);
-                press_enter_to_continue();
-                break;
-            case 3:
-                admin_panel(bank);
-                break;
-            case 0:
-                printf("\nATM Simulasyonundan cikiliyor. Iyi gunler!\n");
-                break;
-            default:
-                printf("Gecersiz secim! Lutfen tekrar deneyin.\n");
-        }
-    } while (choice != 0);
-}
-
-/**
- * @brief Programin giris noktasi.
- *
- * Baslangicta hesap verilerini diskten yukler, ana menuyu calistirir.
- * Bank yapisi yigin (stack) uzerinde tek bir statik/otomatik degisken
- * olarak tutulur; hicbir noktada malloc/free kullanilmadigindan bellek
- * sizintisi riski bulunmaz.
- *
- * @return Basarili cikiste 0.
- */
 int main(void) {
     srand((unsigned int)time(NULL));
 
-    static Bank bank; /* MAX_ACCOUNTS * sizeof(Account) buyuk olabileceginden
-                          stack yerine static/global omurle ayrilir. */
+    static AtmContext ctx;   /* Bank buyuk oldugu icin static omurle ayrilir */
+    memset(&ctx, 0, sizeof(ctx));
 
     ensure_data_directory();
+    if (!load_accounts(&ctx.bank)) {
+        fprintf(stderr, "UYARI: Hesap verileri okunurken sorun olustu.\n");
+    }
+    printf("Toplam %d hesap yuklendi.\n", ctx.bank.count);
 
-    if (!load_accounts(&bank)) {
-        fprintf(stderr, "UYARI: Hesap verileri okunurken bir sorun olustu; bos veriyle devam ediliyor.\n");
+    AtmState state = STATE_MAIN_MENU;
+
+    /* ---- FSM DISPATCHER DONGUSU: tek kontrol noktasi ---- */
+    while (state != STATE_EXIT) {
+        switch (state) {
+            case STATE_MAIN_MENU:      state = state_main_menu(&ctx);      break;
+            case STATE_LOGIN:          state = state_login(&ctx);          break;
+            case STATE_CREATE_ACCOUNT: state = state_create_account(&ctx); break;
+            case STATE_USER_MENU:      state = state_user_menu(&ctx);      break;
+            case STATE_DEPOSIT:        state = state_deposit(&ctx);        break;
+            case STATE_WITHDRAW:       state = state_withdraw(&ctx);       break;
+            case STATE_TRANSFER:       state = state_transfer(&ctx);       break;
+            case STATE_BALANCE:        state = state_balance(&ctx);        break;
+            case STATE_CHANGE_PIN:     state = state_change_pin(&ctx);     break;
+            case STATE_HISTORY:        state = state_history(&ctx);        break;
+            case STATE_INTEREST:       state = state_interest(&ctx);       break;
+            case STATE_QR_WITHDRAW:    state = state_qr_withdraw(&ctx);    break;
+            case STATE_LOGOUT:         state = state_logout(&ctx);         break;
+            case STATE_ADMIN_LOGIN:    state = state_admin_login(&ctx);    break;
+            case STATE_ADMIN_MENU:     state = state_admin_menu(&ctx);     break;
+            case STATE_ADMIN_LIST:     state = state_admin_list(&ctx);     break;
+            case STATE_ADMIN_DELETE:   state = state_admin_delete(&ctx);   break;
+            case STATE_ADMIN_UNLOCK:   state = state_admin_unlock(&ctx);   break;
+            case STATE_EXIT:
+            case STATE_COUNT:
+            default:
+                /* Gecersiz duruma dusmek FSM'de bir hata sinyalidir;
+                   fail-safe olarak programi guvenle sonlandiriyoruz. */
+                fprintf(stderr, "HATA: Gecersiz FSM durumu (%d)!\n", (int)state);
+                state = STATE_EXIT;
+        }
     }
 
-    printf("Toplam %d hesap yuklendi.\n", bank.count);
-
-    main_menu(&bank);
-
+    printf("\nATM Simulasyonundan cikiliyor. Iyi gunler!\n");
     return 0;
+}
+/* İki aşamalı geçiş: 1) girdi -> event, 2) event -> sonraki state.
+   Bu ayrım FSM'i test edilebilir kılar (event üretimini state
+   geçişinden bağımsız test edebilirsin). */
+static AtmState state_main_menu(AtmContext *ctx) {
+    (void)ctx;
+    printf("\n1. Giris Yap\n2. Yeni Hesap Olustur\n3. Admin Paneli\n0. Cik\n");
+    int choice = read_int("Seciminiz: ");
+
+    AtmEvent evt;
+    switch (choice) {
+        case 1: evt = EVT_SELECT_LOGIN;          break;
+        case 2: evt = EVT_SELECT_CREATE_ACCOUNT;  break;
+        case 3: evt = EVT_SELECT_ADMIN;           break;
+        case 0: evt = EVT_SELECT_EXIT;            break;
+        default: printf("Gecersiz secim!\n"); evt = EVT_NONE;
+    }
+
+    switch (evt) {
+        case EVT_SELECT_LOGIN:          return STATE_LOGIN;
+        case EVT_SELECT_CREATE_ACCOUNT: return STATE_CREATE_ACCOUNT;
+        case EVT_SELECT_ADMIN:          return STATE_ADMIN_LOGIN;
+        case EVT_SELECT_EXIT:           return STATE_EXIT;
+        default:                        return STATE_MAIN_MENU;
+    }
+}
+
+/* auth.c::login() DEGISMEDEN cagriliyor, sonucuna gore state degisir */
+static AtmState state_login(AtmContext *ctx) {
+    ctx->active_account = login(&ctx->bank);
+    return (ctx->active_account != NULL) ? STATE_USER_MENU : STATE_MAIN_MENU;
+}
+
+/* account.c::deposit() DEGISMEDEN cagriliyor */
+static AtmState state_deposit(AtmContext *ctx) {
+    deposit(&ctx->bank, ctx->active_account);
+    press_enter_to_continue();
+    return STATE_USER_MENU;   /* EVT_OPERATION_DONE ile esdeger */
+}
+
+/* transaction.c::print_transaction_history() DEGISMEDEN cagriliyor */
+static AtmState state_history(AtmContext *ctx) {
+    print_transaction_history(ctx->active_account);
+    press_enter_to_continue();
+    return STATE_USER_MENU;
+}
+
+/* admin.c'deki alt fonksiyonlar (admin_panel() DEGIL, onun ic parcalari) */
+static AtmState state_admin_list(AtmContext *ctx) {
+    admin_list_accounts(&ctx->bank);
+    press_enter_to_continue();
+    return STATE_ADMIN_MENU;
 }

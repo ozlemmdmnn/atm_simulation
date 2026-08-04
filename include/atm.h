@@ -78,6 +78,74 @@ typedef struct {
     Account accounts[MAX_ACCOUNTS];
     int     count;
 } Bank;
+/* ============================ FSM TANIMLARI ============================ */
+
+/**
+ * @enum AtmState
+ * @brief ATM'nin bulunabileceği tüm durumları (states) tanımlar.
+ */
+typedef enum {
+    STATE_MAIN_MENU = 0,
+    STATE_LOGIN,
+    STATE_CREATE_ACCOUNT,
+    STATE_USER_MENU,
+    STATE_DEPOSIT,
+    STATE_WITHDRAW,
+    STATE_TRANSFER,
+    STATE_BALANCE,
+    STATE_CHANGE_PIN,
+    STATE_HISTORY,
+    STATE_INTEREST,
+    STATE_QR_WITHDRAW,
+    STATE_LOGOUT,
+    STATE_ADMIN_LOGIN,
+    STATE_ADMIN_MENU,
+    STATE_ADMIN_LIST,
+    STATE_ADMIN_DELETE,
+    STATE_ADMIN_UNLOCK,
+    STATE_EXIT,
+    STATE_COUNT
+} AtmState;
+
+/**
+ * @enum AtmEvent
+ * @brief Kullanıcı girdisinden üretilen olayları (events) tanımlar.
+ *        Durum geçişleri girdi değil, olay bazlı yapılır.
+ */
+typedef enum {
+    EVT_NONE = 0,
+    EVT_SELECT_LOGIN,
+    EVT_SELECT_CREATE_ACCOUNT,
+    EVT_SELECT_ADMIN,
+    EVT_SELECT_EXIT,
+    EVT_SELECT_DEPOSIT,
+    EVT_SELECT_WITHDRAW,
+    EVT_SELECT_TRANSFER,
+    EVT_SELECT_BALANCE,
+    EVT_SELECT_CHANGE_PIN,
+    EVT_SELECT_HISTORY,
+    EVT_SELECT_INTEREST,
+    EVT_SELECT_QR,
+    EVT_SELECT_LOGOUT,
+    EVT_SELECT_ADMIN_LIST,
+    EVT_SELECT_ADMIN_DELETE,
+    EVT_SELECT_ADMIN_UNLOCK,
+    EVT_SELECT_ADMIN_BACK,
+    EVT_OPERATION_DONE,
+    EVT_AUTH_OK,
+    EVT_AUTH_FAIL
+} AtmEvent;
+
+/**
+ * @struct AtmContext
+ * @brief FSM state fonksiyonları arasında paylaşılan tüm verinin tutulduğu
+ *        bağlam (context) yapısı. Global değişken yerine tek bir pointer
+ *        tüm state fonksiyonlarına geçirilir (gömülü sistemlerde standart).
+ */
+typedef struct {
+    Bank     bank;
+    Account *active_account;
+} AtmContext;
 
 /* ============================ file_utils.c ============================ */
 
