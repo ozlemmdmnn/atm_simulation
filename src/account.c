@@ -67,8 +67,9 @@ static void reset_daily_limit_if_new_day(Account *acc) {
  *        gerceklestirir.
  * @param bank Diske kaydetmek icin Bank yapisi.
  * @param acc  Islem yapilacak hesap.
+ * @return Para fiilen verildiyse (basarili cekim) 1, aksi halde 0.
  */
-void withdraw(Bank *bank, Account *acc) {
+int withdraw(Bank *bank, Account *acc) {
     printf("\n===== PARA CEKME =====\n");
     printf("Guncel Bakiye: %.2f TL\n", acc->balance);
 
@@ -80,12 +81,12 @@ void withdraw(Bank *bank, Account *acc) {
 
     if (amount > acc->balance) {
         printf("Yetersiz bakiye! Mevcut bakiyeniz: %.2f TL\n", acc->balance);
-        return;
+        return 0;
     }
 
     if (amount > remaining_limit) {
         printf("Gunluk cekim limitini asiyorsunuz! Bugun en fazla %.2f TL daha cekebilirsiniz.\n", remaining_limit);
-        return;
+        return 0;
     }
 
     acc->balance -= amount;
@@ -97,6 +98,7 @@ void withdraw(Bank *bank, Account *acc) {
     } else {
         printf("Islem yapildi ancak kayit sirasinda bir sorun olustu!\n");
     }
+    return 1; /* Para fiilen verildi -> motor bu cekimde asindi sayilir */
 }
 
 /**
@@ -230,8 +232,9 @@ static void draw_ascii_qr(void) {
  *
  * @param bank Diske kaydetmek icin Bank yapisi.
  * @param acc  Islem yapilacak hesap.
+ * @return Para fiilen verildiyse (basarili cekim) 1, aksi halde 0.
  */
-void qr_withdrawal_simulation(Bank *bank, Account *acc) {
+int qr_withdrawal_simulation(Bank *bank, Account *acc) {
     printf("\n===== QR ILE PARA CEKME (SIMULASYON) =====\n");
     printf("Guncel Bakiye: %.2f TL\n", acc->balance);
 
@@ -239,14 +242,14 @@ void qr_withdrawal_simulation(Bank *bank, Account *acc) {
 
     if (amount > acc->balance) {
         printf("Yetersiz bakiye! Mevcut bakiyeniz: %.2f TL\n", acc->balance);
-        return;
+        return 0;
     }
 
     reset_daily_limit_if_new_day(acc);
     double remaining_limit = DAILY_WITHDRAWAL_LIMIT - acc->daily_withdrawn;
     if (amount > remaining_limit) {
         printf("Gunluk cekim limitini asiyorsunuz! Bugun en fazla %.2f TL daha cekebilirsiniz.\n", remaining_limit);
-        return;
+        return 0;
     }
 
     printf("\nLutfen telefonunuzdaki ATM uygulamasi ile asagidaki QR kodu okutun:\n\n");
@@ -260,7 +263,7 @@ void qr_withdrawal_simulation(Bank *bank, Account *acc) {
 
     if (user_input != verification_code) {
         printf("Dogrulama kodu hatali! Islem iptal edildi.\n");
-        return;
+        return 0;
     }
 
     acc->balance -= amount;
@@ -272,4 +275,5 @@ void qr_withdrawal_simulation(Bank *bank, Account *acc) {
     } else {
         printf("Islem yapildi ancak kayit sirasinda bir sorun olustu!\n");
     }
+    return 1; /* Para fiilen verildi -> motor bu cekimde asindi sayilir */
 }
